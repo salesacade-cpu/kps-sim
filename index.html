@@ -1,0 +1,628 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style></head><body>
+<title>정비 지연 원인 분석 시뮬레이션</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F5F4EF;--panel:#FFFFFF;--panel2:#EDEBE4;--line:#D9D6CC;--line2:#C4C0B3;
+  --ink:#1C1F27;--ink2:#555A66;--ink3:#8A8E99;
+  --accent:#1B6DB8;--accent-bg:#E3EEF9;--accent-ink:#0F4C86;--kps-yellow:#F2B63C;
+  --ok:#1E7F5C;--ok-bg:#DFF1E8;--warn:#B8620E;--warn-bg:#FBEBD6;--bad:#B23A3A;--bad-bg:#F8E1E1;
+  --key:#7A4BC9;--key-bg:#ECE4F9;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#15171C;--panel:#1E2128;--panel2:#262A33;--line:#353A45;--line2:#48505E;
+  --ink:#ECEDF0;--ink2:#B4B8C2;--ink3:#7E838F;
+  --accent:#6E97F0;--accent-bg:#1E2C4D;--accent-ink:#BFD1FA;
+  --ok:#5CC49A;--ok-bg:#173A2D;--warn:#F0A85A;--warn-bg:#3F2A12;--bad:#F08585;--bad-bg:#42201F;
+  --key:#B79AF0;--key-bg:#2E2444;}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#15171C;--panel:#1E2128;--panel2:#262A33;--line:#353A45;--line2:#48505E;
+  --ink:#ECEDF0;--ink2:#B4B8C2;--ink3:#7E838F;
+  --accent:#6E97F0;--accent-bg:#1E2C4D;--accent-ink:#BFD1FA;
+  --ok:#5CC49A;--ok-bg:#173A2D;--warn:#F0A85A;--warn-bg:#3F2A12;--bad:#F08585;--bad-bg:#42201F;
+  --key:#B79AF0;--key-bg:#2E2444;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:0 48px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand b{font-weight:600;font-size:16px}
+.brand span{font-size:12px;color:var(--ink3);font-family:var(--mono);letter-spacing:.04em}
+.topr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line2);color:var(--ink2);background:var(--panel)}
+.pill.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.pill.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.pill.acc{background:var(--accent-bg);color:var(--accent-ink);border-color:transparent}
+.pill.key{background:var(--key-bg);color:var(--key);border-color:transparent}
+.pill.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1{font-size:24px;font-weight:600;margin:0 0 6px;text-wrap:balance;line-height:1.3}
+h2{font-size:18px;font-weight:600;margin:0 0 10px;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0 0 6px;color:var(--ink2);letter-spacing:.02em}
+p{margin:0 0 10px}
+.lead{color:var(--ink2);max-width:62ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-weight:500;border-radius:8px;border:1px solid var(--line2);background:var(--panel);color:var(--ink);padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--ink3)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.pri:hover{filter:brightness(1.08)}
+button.ghost{background:transparent}
+button.sm{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;width:100%}
+textarea{min-height:76px;resize:vertical;line-height:1.5}
+label.f{display:block;font-size:13px;color:var(--ink2);font-weight:500;margin-bottom:4px}
+.quote{border-left:3px solid var(--accent);padding:10px 14px;background:var(--accent-bg);color:var(--accent-ink);border-radius:0 8px 8px 0;font-weight:500}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--ink3);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.tbl{overflow-x:auto}
+.counter{font-family:var(--mono);font-size:40px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.counter small{font-size:16px;color:var(--ink3)}
+.card{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--panel)}
+.card.got{border-left:4px solid var(--accent)}
+.card.none{border-left:4px solid var(--ink3);background:var(--panel2)}
+.card .t{font-size:12px;color:var(--ink3);font-family:var(--mono);margin-bottom:4px}
+.card .h{font-weight:600;margin-bottom:4px}
+.log{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.steps span{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);color:var(--ink3)}
+.steps span.on{background:var(--ink);color:var(--bg)}
+.steps span.done{background:var(--ok-bg);color:var(--ok)}
+.teamgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.tcard{border:1px solid var(--line);border-radius:var(--r);padding:14px;background:var(--panel);cursor:pointer;display:flex;flex-direction:column;gap:8px}
+.tcard:hover{border-color:var(--accent)}
+.tcard.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+.tcard .nm{font-weight:600;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;color:var(--ink2)}
+.kv b{color:var(--ink);font-family:var(--mono);font-weight:500}
+.bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.err{color:var(--bad);font-size:13px;margin-top:6px}
+.note{font-size:13px;color:var(--ink3)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink3)}
+.dot.live{background:var(--ok)}
+.tag{font-size:11px;padding:2px 7px;border-radius:5px;font-family:var(--mono)}
+.tag.핵심{background:var(--key-bg);color:var(--key)}
+.tag.편향{background:var(--warn-bg);color:var(--warn)}
+.tag.정의{background:var(--accent-bg);color:var(--accent-ink)}
+.tag.보조{background:var(--panel2);color:var(--ink2)}
+.tag.노이즈{background:var(--bad-bg);color:var(--bad)}
+.scoreline{display:grid;grid-template-columns:1fr 60px;gap:8px;align-items:center;font-size:14px;padding:6px 0;border-bottom:1px solid var(--line)}
+.scoreline input{padding:5px 8px;text-align:right;font-family:var(--mono)}
+.big{font-family:var(--mono);font-size:28px;font-weight:500}
+code.code{display:block;white-space:pre-wrap;word-break:break-all;font-family:var(--mono);font-size:11px;background:var(--panel2);padding:10px;border-radius:8px;max-height:140px;overflow:auto}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:8px 12px;color:var(--ink2)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.answer{border:1px solid var(--key);background:var(--key-bg);border-radius:var(--r);padding:16px}
+@media (max-width:520px){.counter{font-size:32px}.panel{padding:14px}}
+.hasm{position:relative}
+.mascot{position:absolute;right:14px;bottom:0;width:150px;max-width:28%;pointer-events:none;user-select:none}
+.mascot.top{bottom:auto;top:10px}
+.hasm.pad{padding-right:190px}
+.mascot-inline{width:120px;max-width:100%;display:block;margin:0 auto 6px}
+.intro{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.intro img{width:150px;max-width:40%}
+.intro .txt{flex:1;min-width:220px}
+@media (max-width:640px){.mascot{position:static;display:block;width:110px;margin:8px 0 0 auto}.hasm.pad{padding-right:18px}}
+@media (prefers-reduced-motion:no-preference){.mascot.pop{animation:pop .5s cubic-bezier(.2,.8,.2,1)}@keyframes pop{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}}
+@media (prefers-reduced-motion:no-preference){.tcard,button{transition:border-color .15s,box-shadow .15s}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="brand"><b>○○사업소 정비 지연 원인 분석</b><span>한전KPS 3직급 승격자 기본과정 · 가상 사례</span></div>
+  <div class="topr">
+    <span id="syncPill" class="pill"><i class="dot"></i> 개별 진행</span>
+    <span id="clock" class="pill mono">00:00</span>
+    <button id="btnModeTeam" class="sm">팀 화면</button>
+    <button id="btnModeInst" class="sm ghost">강사</button>
+  </div>
+</header>
+
+<!-- ===================== TEAM ===================== -->
+<section id="viewTeam" class="stack" style="padding-top:20px">
+
+  <div id="tSetup" class="panel">
+    <div class="intro"><img src="img/wave.png" alt=""><div class="txt"><h1>팀 등록</h1>
+    <p class="lead">팀 번호를 고르고 팀 이름을 정하십시오. 같은 기기에서 진행하는 팀은 한 팀만 등록합니다.</p></div></div>
+    <div class="grid g2" style="margin-top:12px">
+      <div><label class="f" for="teamNo">팀 번호</label><select id="teamNo"></select></div>
+      <div><label class="f" for="teamName">팀 이름</label><input id="teamName" placeholder="예: 영업기획 1팀" maxlength="20"></div>
+    </div>
+    <div class="err" id="setupErr" hidden></div>
+    <div class="row" style="margin-top:14px"><button class="pri" id="btnRegister">브리핑 보기</button></div>
+  </div>
+
+  <div id="tPlay" hidden class="stack">
+    <div class="steps"><span id="st1">브리핑</span><span id="st2">정보 요청</span><span id="st3">보고서</span><span id="st4">제출</span></div>
+
+    <!-- 브리핑 -->
+    <div id="pBrief" class="stack">
+      <div class="panel hasm pad">
+        <img class="mascot" src="img/clip.png" alt="">
+        <h1>상황 브리핑</h1>
+        <p class="lead">여러분은 ○○화력정비사업소 기술지원팀입니다(가상 사례). 오늘 아침 사업소장이 사무실에 들어와 이렇게 말했습니다.</p>
+        <div class="quote">"우리 사업소 정비 지연률이 최근 석 달 새 5%p 올랐어. 협력사가 바뀌고 나서 그런 거야. 협력사 관리 강화안을 내일 아침까지 한 장으로 보고해."</div>
+        <p style="margin-top:10px">소장은 이 말만 남기고 본사 회의에 갔습니다. 내일 아침 9시까지 A4 한 장 분량의 보고서를 제출해야 합니다.</p>
+      </div>
+      <div class="grid g2">
+        <div class="panel">
+          <h2>여러분이 할 일</h2>
+          <ol style="margin:0;padding-left:20px"><li>정비 지연률 상승의 원인을 밝힌다.</li><li>원인에 맞는 대응책을 제안한다.</li><li>위 두 가지를 보고서 양식에 정리한다.</li></ol>
+        </div>
+        <div class="panel">
+          <h2>정보를 얻는 방법</h2>
+          <ul style="margin:0;padding-left:20px">
+            <li>사업소 안에 이 문제와 관련된 정보 카드가 <b>30장</b> 있습니다. 목록은 공개되지 않습니다.</li>
+            <li>"무엇을 알고 싶은지"를 문장으로 요청합니다. 예: "최근 1년 월별 지연률을 알고 싶습니다."</li>
+            <li>해당 카드가 있으면 받습니다. 없으면 "그 정보는 없습니다"라는 답을 듣고, 이 답도 횟수에 포함됩니다.</li>
+            <li>요청은 <b>12회</b>까지. 한 번에 한 가지만.</li>
+            <li>카드 내용은 모두 사실입니다. 다만 사람의 진술은 그 사람의 입장에서 쓰인 것입니다.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>요청하기 전에 팀에서 먼저 답해 보십시오</h2>
+        <ul style="margin:0;padding-left:20px">
+          <li>소장의 말에서 <b>사실</b>과 <b>소장의 판단</b>은 어느 부분인가?</li>
+          <li>우리가 답해야 할 질문은 정확히 무엇인가?</li>
+          <li>그 질문에 답하려면 어떤 정보가 있어야 하는가? 12회를 어디에 쓸 것인가?</li>
+        </ul>
+        <div class="row" style="margin-top:14px"><button class="pri" id="btnStartReq">작전 회의 끝, 정보 요청 시작</button><span class="note" id="briefGate"></span></div>
+      </div>
+    </div>
+
+    <!-- 정보 요청 -->
+    <div id="pReq" hidden class="grid" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)">
+      <div class="stack">
+        <div class="panel">
+          <div class="row" style="justify-content:space-between">
+            <div><h3>남은 요청</h3><div class="counter"><span id="remain">12</span><small>/ 12</small></div></div>
+            <div style="text-align:right"><h3>팀</h3><div id="teamLabel" style="font-weight:600"></div></div>
+          </div>
+          <div style="margin-top:14px">
+            <label class="f" for="reqText">알고 싶은 정보를 문장으로</label>
+            <textarea id="reqText" placeholder="예: 최근 1년 월별 지연률을 알고 싶습니다."></textarea>
+            <div class="err" id="reqErr" hidden></div>
+            <div class="row" style="margin-top:8px;justify-content:space-between">
+              <span class="note">요청은 한 번에 한 가지만. 애매한 요청은 되묻고 횟수를 차감하지 않습니다.</span>
+              <button class="pri" id="btnAsk">요청</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel hasm" id="lastAnswer" hidden></div>
+        <div class="panel">
+          <div class="row" style="justify-content:space-between"><h2 style="margin:0">보고서 작성으로</h2><button id="btnToReport">요청 마치고 보고서 작성</button></div>
+          <p class="note" style="margin-top:6px">보고서 단계로 넘어가면 더는 요청할 수 없습니다.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>받은 정보 <span class="note" id="gotCount"></span></h2>
+        <div class="log" id="cardLog"><p class="note">아직 요청한 정보가 없습니다.</p><img class="mascot-inline" src="img/mega.png" alt=""></div>
+      </div>
+    </div>
+
+    <!-- 보고서 -->
+    <div id="pReport" hidden class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)">
+      <div class="panel stack">
+        <div><h1>보고서 (A4 한 장)</h1><p class="lead">결론을 첫 줄에 쓰십시오. 근거는 받은 카드로만 씁니다.</p></div>
+        <div><label class="f" for="r1">결론 (한 문장)</label><textarea id="r1" style="min-height:56px"></textarea></div>
+        <div><label class="f" for="r2">지연률 상승의 원인</label><textarea id="r2"></textarea></div>
+        <div><label class="f" for="r3">근거 (요청한 정보 중 무엇으로 확인했는가)</label><textarea id="r3"></textarea></div>
+        <div><label class="f" for="r4">대응책</label><textarea id="r4"></textarea></div>
+        <div><label class="f" for="r5">소장님께 드리는 말씀 (있다면)</label><textarea id="r5" style="min-height:56px"></textarea></div>
+        <div class="err" id="repErr" hidden></div>
+        <div class="row"><button class="pri" id="btnSubmit">보고서 제출</button><span class="note">제출 후에는 수정할 수 없습니다.</span></div>
+      </div>
+      <div class="panel"><h2>받은 정보</h2><div class="log" id="cardLog2"></div><img class="mascot-inline" src="img/ok.png" alt="" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 제출 완료 -->
+    <div id="pDone" hidden class="stack">
+      <div class="panel hasm pad">
+        <img class="mascot top pop" src="img/party.png" alt="">
+        <h1>제출 완료</h1>
+        <p class="lead" id="doneMsg"></p>
+        <div id="doneCodeBox">
+          <h3>결과 코드</h3>
+          <p class="note">강사 화면에 실시간으로 전달되지 않는 환경이면 이 코드를 강사에게 보내십시오. 요청 기록과 보고서가 모두 들어 있습니다.</p>
+          <code class="code" id="resultCode"></code>
+          <div class="row" style="margin-top:8px"><button id="btnCopyCode">코드 복사</button><span class="note" id="copyMsg"></span></div>
+        </div>
+      </div>
+      <div class="panel"><h2>우리 팀 요청 기록</h2><div class="tbl"><table id="doneLog"></table></div></div>
+      <div id="teamReveal" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== INSTRUCTOR ===================== -->
+<section id="viewInst" hidden class="stack" style="padding-top:20px">
+  <div id="iLock" class="panel hasm pad" style="max-width:520px">
+    <img class="mascot" src="img/ok.png" alt="">
+    <h1>강사 확인</h1>
+    <p class="lead">정답과 팀 결과가 있는 화면입니다. 비밀번호를 입력하십시오.</p>
+    <label class="f" for="pin">비밀번호</label><input id="pin" type="password" autocomplete="off">
+    <div class="err" id="pinErr" hidden></div>
+    <div class="row" style="margin-top:12px"><button class="pri" id="btnPin">열기</button></div>
+  </div>
+
+  <div id="iDash" hidden class="stack">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <div><h1 style="margin:0">강사 대시보드</h1><p class="note" id="dashSync" style="margin:0"></p></div>
+        <div class="row">
+          <span class="note">진행 단계</span>
+          <button id="phBrief" class="sm">브리핑</button>
+          <button id="phReq" class="sm">정보 요청</button>
+          <button id="phReport" class="sm">보고서</button>
+          <button id="phReveal" class="sm">정답 공개</button>
+          <button id="btnResetAll" class="sm ghost">전체 초기화</button>
+        </div>
+      </div>
+      <div id="resetConfirm" hidden class="row" style="margin-top:10px"><span class="note">모든 팀 기록을 지웁니다. 되돌릴 수 없습니다.</span><button class="sm" id="btnResetYes" style="color:var(--bad)">지운다</button><button class="sm ghost" id="btnResetNo">취소</button></div>
+    </div>
+
+    <div class="tabs">
+      <button class="on" data-tab="teams">팀 현황</button>
+      <button data-tab="score">채점</button>
+      <button data-tab="cards">카드 30장</button>
+      <button data-tab="answer">정답·디브리핑</button>
+      <button data-tab="import">결과 코드 가져오기</button>
+    </div>
+
+    <div id="tabTeams">
+      <div class="teamgrid" id="teamGrid"></div>
+      <div id="teamDetail" hidden class="panel" style="margin-top:14px"></div>
+    </div>
+
+    <div id="tabScore" hidden class="stack">
+      <div class="panel">
+        <h2>팀별 집계</h2>
+        <p class="note">자동 항목은 요청 기록에서 계산됩니다. 관찰·발표 항목은 팀 상세에서 강사가 입력합니다.</p>
+        <div class="tbl"><table id="scoreTable"></table></div>
+        <div class="row" style="margin-top:10px"><button id="btnCopyCsv">집계 CSV 복사</button><span class="note" id="csvMsg"></span></div>
+      </div>
+    </div>
+
+    <div id="tabCards" hidden class="panel">
+      <h2>정보 카드 30장</h2>
+      <p class="note">유형: 핵심 6 · 편향 4 · 정의 2 · 보조 12 · 노이즈 6. 팀 화면에는 유형이 보이지 않습니다.</p>
+      <div class="tbl"><table id="cardTable"></table></div>
+    </div>
+
+    <div id="tabAnswer" hidden class="stack"></div>
+
+    <div id="tabImport" hidden class="panel">
+      <h2>결과 코드 가져오기</h2>
+      <p class="lead">팀이 제출 화면에서 복사한 결과 코드를 붙여 넣으십시오. 실시간 연결이 없는 환경에서 씁니다.</p>
+      <textarea id="importText" placeholder="결과 코드 붙여넣기"></textarea>
+      <div class="err" id="importErr" hidden></div>
+      <div class="row" style="margin-top:8px"><button class="pri" id="btnImport">가져오기</button><span class="note" id="importMsg"></span></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+/* ============ DATA ============ */
+const PIN = "2026";
+const MAX_REQ = 12;
+const TEAM_COUNT = 8;
+const KEY_CARDS = [7,12];
+const NOISE = [1,19,20,21,22,27];
+
+const CARDS = [
+{n:1,type:"노이즈",title:"사업소 기본 정보",body:"○○화력정비사업소(가상). 담당 발전소 500MW급 2기. 정규 인원 96명, 협력사 인원 32명. 사업소 건물 2019년 신축.",k:["기본 정보","사업소 정보","사업소 개요","몇 명","규모","담당 발전소","호기","설립"]},
+{n:2,type:"보조",title:"월별 정비 지연률 12개월",body:"단위 %. 2025.9 6.1 / 10 5.8 / 11 6.3 / 12 5.9 / 2026.1 6.4 / 2 6.0 / 3 5.7 / 4 6.2 / 5 8.9 / 6 11.4 / 7 11.8 / 8 12.1. 전년 6~8월은 6.3 / 6.0 / 6.5.",k:["월별","추이","12개월","1년","최근 1년","흐름","월간","전년","작년","지연률 변화","지연율 변화"]},
+{n:3,type:"편향",title:"정비 1반장 인터뷰",body:"\"8월 중순에 협력사가 바뀌고 나서 손발이 안 맞아요. 우리 반 운영에는 문제가 없습니다. 협력사 교육을 시켜야 하고, 그 비용은 사업소에서 지원해 줘야 합니다.\"",k:["반장","1반장","반장 인터뷰","반장 의견","반장 이야기","반장 말","정비반장","현장 관리자"]},
+{n:4,type:"정의",title:"'지연률 5%p 상승'의 정의",body:"지연률 = 계획 완료일을 넘긴 정비 건수 ÷ 전체 정비 건수. 2026년 6~8월 평균 11.8%, 전년 동기 6.3%로 5.5%p 상승. 본사 관리 기준은 전년 동기 대비 3개월 평균. 월별로 보면 상승은 5월 중순부터 시작됨.",k:["5%","정의","기준","지연률 기준","지연율 기준","어떻게 계산","무엇 대비","전년 대비","언제부터","상승 시점","시작 시점","오르기 시작","늘기 시작","어느 시점","산정","석 달","3개월","지연률이란","지연의 정의"]},
+{n:5,type:"정의",title:"지연 건수와 건당 지연 일수",body:"2026년 6~8월 전년 동기 대비 지연 건수 +92%, 건당 평균 지연 일수 4.1일 → 4.3일(거의 동일). 오래 걸리는 게 아니라, 지연되는 건 자체가 늘어남.",k:["건수","건당","며칠","일수","지연 일수","얼마나 늦","평균 지연","지연 기간","길어졌","오래 걸리"]},
+{n:6,type:"보조",title:"날씨",body:"2026년 6~8월 강수일수 전년 대비 4일 많음. 옥외 작업 중단일은 전년과 같은 3일.",k:["날씨","기상","강수","비가","장마","기온","폭염","옥외"]},
+{n:7,type:"핵심",title:"정비 유형별 지연률",body:"2026년 4월 → 2026년 6~8월 평균. 부품 교체 수반 정비 8% → 31%. 점검·조정 정비 6% → 6%. 청소·소모품 교체 5% → 5%. 시운전 지원 4% → 5%.",k:["유형별","정비 유형","종류별","어떤 정비","무슨 정비","부품 교체","교체 정비","점검 정비","작업 종류","작업 유형","정비 종류","어떤 작업이 늦","어떤 작업","유형"]},
+{n:8,type:"핵심",title:"협력사 교체 정보",body:"△△기술(가상). 2026년 8월 14일부터 투입(계약 교체). 인원 32명으로 전 협력사와 동일. 담당 범위 동일.",k:["협력사","협력업체","협력사 교체","협력사 정보","언제 바뀌","바뀐 협력사","새 협력사","새로운 협력사","교체 시점","협력사 인원","협력사 투입","계약 교체","외주"]},
+{n:9,type:"편향",title:"정비 2반 주임 인터뷰",body:"근무 6개월차. \"5월부터 부품이 제때 안 들어와요. 자재 검수 절차가 바뀐 다음부터요. 협력사 바뀐 뒤에도 사람들은 일 잘합니다. 부품 기다리다 날짜 넘기는 거예요. 자재 대기 걸린 작업이 쌓여 있어요.\"",k:["주임","2반","현장 직원","실무자","작업자","정비원","현장 인터뷰","직원 인터뷰","직원 의견","직원 이야기","직원 말","현장 목소리","젊은 직원","기사"]},
+{n:10,type:"핵심",title:"공정 단계별 지연 발생 지점",body:"지연이 발생한 단계 비율. 2026년 6~8월. 자재 입고 대기 78% (전년 21%). 작업 수행 12% (전년 46%). 검수·시운전 10% (전년 33%).",k:["단계별","공정","어느 단계","어디서 지연","어디서 늦","공정 단계","프로세스","절차 단계","병목","어느 과정","단계"]},
+{n:11,type:"보조",title:"설비 계통별 지연률",body:"2026년 6~8월 전년 동기 대비. 보일러 밸브·펌프 +14%p. 터빈 보조기기 +9%p. 전기 설비 +1%p. 제어·계측 +1%p. 건축·토목 0%p.",k:["계통","설비별","보일러","터빈","전기","제어","계측","어떤 설비","설비 종류","밸브","펌프","기기별"]},
+{n:12,type:"핵심",title:"본사 자재관리 지침 개정 공문",body:"2026년 4월 28일 시달. 5월 12일부터 외부 구매 부품의 입고 검수를 2단계(사업소 검수 + 본사 품질 검증)로 강화. 적용 기간은 별도 통보 시까지.",k:["자재","자재 관리","지침","공문","본사 지침","규정","절차 변경","검수","검사 절차","입고 절차","구매 절차","제도 변경","제도","외부 요인","외부 변화","환경 변화","환경에 변화","주변 변화","무슨 변화","무엇이 바뀌","바뀐 것","바뀐 게","바뀐 거","변화가 있","변경 사항","최근 변화","달라진","최근에 바뀐","최근 바뀐"]},
+{n:13,type:"편향",title:"사업소장 메모",body:"\"협력사 관리 강화 예산 3,000만원(교육·감독 인력) 확보 필요. 9월 중 시행. 기술지원팀 보고서 받아서 본사 보고.\"",k:["사업소장","소장","소장 의견","소장 생각","소장 메모","예산","교육 예산","관리 강화 예산","본사 보고","상사","윗분"]},
+{n:14,type:"핵심",title:"같은 협력사가 투입된 다른 3개 사업소",body:"△△기술이 8월부터 투입된 다른 사업소. 협력사 교체 후 4주 vs 교체 전 4주 지연률. A사업소 +1.5%p. B사업소 +2.1%p. C사업소 +0.8%p.",k:["다른 사업소","타 사업소","다른 곳","비교 사업소","협력사 영향","협력사가 미친","협력사 바뀐 곳","협력사 교체 후","같은 협력사","협력사 투입 후","전국 사업소","다른 사업소는","다른 데는"]},
+{n:15,type:"보조",title:"정비 절차서 개정 이력",body:"2024년 11월 개정. 이후 변경 없음.",k:["절차서","매뉴얼","작업 절차","작업 방법","방식이 바뀌","작업 표준","표준"]},
+{n:16,type:"보조",title:"안전작업허가 발급 소요",body:"2026년 6~8월 평균 0.9일. 전년 동기 0.9일. 본사 평균 1.1일.",k:["안전작업허가","작업허가","허가","안전 절차","안전 관리","안전"]},
+{n:17,type:"보조",title:"자재 대기 중 작업 건수",body:"2026년 6~8월 월평균 14건. 전년 동기 6건. 본사 평균 7건.",k:["대기","대기 중","기다리","밀려","적체","쌓여","대기 건수","보류","멈춰"]},
+{n:18,type:"보조",title:"발전소 운전 계획 변경",body:"발전소 측 정비 요청 일정 변경 2026년 6~8월 3건. 전년 동기 4건.",k:["운전 계획","발전소 요청","발전소 일정","고객 일정","일정 변경","발전소 측","계획 변경","발전소가"]},
+{n:19,type:"노이즈",title:"협력사 대표 신상",body:"52세. 정비업 경력 25년. 전직 발전소 정비 반장.",k:["대표","협력사 대표","사장","협력사 사장","대표 경력","대표 신상","대표 이력"]},
+{n:20,type:"노이즈",title:"회사 연혁",body:"1984년 설립. 발전설비 정비 전문 공기업. 전국 사업소 다수.",k:["연혁","회사 역사","설립","창립","회사 소개","회사 규모","우리 회사"]},
+{n:21,type:"노이즈",title:"협력사 작업복과 차량",body:"작업복 남색. 차량 흰색 승합 3대. 사업소 내 대기실 별도 배정.",k:["작업복","차량","복장","대기실","협력사 시설","협력사 모습","협력사 외관"]},
+{n:22,type:"노이즈",title:"지역 인구 통계",body:"사업소 소재 시 인구 21만 명. 전년 대비 0.4% 감소.",k:["인구","지역","주민","동네","시 인구","인구 통계"]},
+{n:23,type:"핵심",title:"자재 입고 리드타임 실측",body:"사업소 자재팀 측정. 외부 구매 부품 발주~입고 평균. 2026년 4월 3.1일. 2026년 7월 9.4일. 다른 사업소의 리드타임은 측정 안 함.",k:["리드타임","입고 기간","입고까지","발주","납기","자재 도착","부품 도착","부품이 오는","자재 소요","입고 소요","얼마나 걸려서 들어","자재 입고","부품 입고"]},
+{n:24,type:"보조",title:"사업소 자체 개선 활동 이력",body:"2026년 6월 한 달 '정비 사전 준비 점검 강화' 캠페인 시행. 지연률 변화 없음.",k:["개선 활동","캠페인","자체 개선","조치","이미 한","해 본 것","시도","대책을 했","개선을 했","사업소에서 한"]},
+{n:25,type:"보조",title:"발전소 측 클레임",body:"최근 3개월 정비 품질 클레임 2건(마감 미흡). 전년 동기 3건.",k:["클레임","불만","품질 문제","품질 지적","고객 불만","발전소 불만","민원","컴플레인","품질"]},
+{n:26,type:"보조",title:"추가 수주·신규 착수 공사",body:"2026년 6~8월 사업소 추가 수주 공사 없음. 신규 착수 프로젝트 없음.",k:["추가 수주","신규 공사","신규 프로젝트","일이 늘","물량","업무량","작업량","건수가 늘","정비 건수","전체 건수"]},
+{n:27,type:"노이즈",title:"협력사 사보 게시글",body:"8월 20일. \"○○사업소에 새로 투입되었습니다. 열심히 하겠습니다.\"",k:["사보","게시글","SNS","블로그","홍보","소식지"]},
+{n:28,type:"보조",title:"사업소 정규 인원",body:"정규 96명(정비 4개 반). 최근 1년 인원 변동 없음. 신규 전입 2명, 전출 2명.",k:["정규 인원","우리 인원","인력 변동","사내 인원","직원 수","인원 변동","전입","전출","인력 구성","인원 구성","사람이 바뀌","직원 변동"]},
+{n:29,type:"보조",title:"긴급(비계획) 정비 요청",body:"월평균 11건. 2026년 6~8월 12건(+9%).",k:["긴급","비계획","돌발","고장 정비","긴급 정비","갑자기"]},
+{n:30,type:"보조",title:"협력사 투입 초기 교육",body:"투입 후 2주간 사업소 OJT 시행. 8월 28일 종료. 이수율 100%.",k:["협력사 교육","OJT","적응 교육","초기 교육","협력사 훈련","협력사 오리엔테이션","협력사 교육을 했","교육 이력","교육을 시켰"]}
+];
+const NO_INFO = [["협력사 지연률","협력사 작업 일지","협력사 실적","협력사 성과","협력사의 지연"],["설문","정비원 조사","앙케트","직원 설문","의견 조사"],["개정 전 검수","이전 검수 절차","검수 절차 세부","검수 단계별 소요"],["단가","협력사 비용","계약 금액","협력사 단가"],["협력사 작업 시간","협력사 근무 시간"]];
+const CLARIFY = {
+  "지연":"지연은 여러 방식으로 볼 수 있습니다. 월별·정비 유형별·공정 단계별·설비 계통별 중 어느 것입니까? 아니면 건수와 건당 일수입니까?",
+  "협력사":"협력사의 무엇입니까? 교체 시점·인원, 초기 교육, 다른 사업소에 미친 영향 중 골라 주십시오.",
+  "인터뷰":"누구의 이야기입니까? 정비 1반장, 정비 2반 주임, 사업소장 중 골라 주십시오.",
+  "자재":"자재의 무엇입니까? 본사 지침, 입고 리드타임, 자재 대기 중 작업 건수 중 골라 주십시오.",
+  "직원":"직원의 무엇입니까? 정규 인원 구성입니까, 현장 직원 인터뷰입니까?",
+  "교육":"협력사 초기 교육 이력입니까, 사업소장이 말한 교육 예산입니까?",
+  "정보":"어떤 정보인지 한 가지로 좁혀 주십시오.",
+  "자료":"어떤 자료인지 한 가지로 좁혀 주십시오.",
+  "원인":"원인은 팀이 찾아야 합니다. 확인하고 싶은 사실 한 가지를 요청해 주십시오.",
+  "이유":"이유는 팀이 찾아야 합니다. 확인하고 싶은 사실 한 가지를 요청해 주십시오."
+};
+const ANSWER = {
+  conclusion:"○○사업소 정비 지연률 상승(+5.5%p)의 주 원인은 협력사 교체가 아니라 5월 12일 시행된 본사 자재 검수 절차 강화로 부품 입고 리드타임이 3일에서 9일로 늘어난 것입니다. 협력사 교체의 영향은 1~2%p 수준입니다.",
+  path:[["4 또는 2","지연률의 정의와 상승 시작 시점(5월 중순). 소장의 '석 달'이 실은 '넉 달'."],["8","협력사 교체 시점 8월 14일. 상승 시작보다 3개월 뒤."],["7","정비 유형별 지연률. 부품 교체 수반 정비만 8% → 31%."],["12 또는 9","자재 검수 절차 강화 5월 12일. 유형·시점이 모두 맞는 원인."],["14","같은 협력사가 투입된 다른 사업소. 협력사 영향의 실제 크기 1~2%p."]],
+  actions:"부품 교체 수반 정비는 계획 수립 시 리드타임 9일을 반영해 선발주. 자재 대기 14건은 발주 순서를 재조정. 본사에 사업소 1차 검수로 갈음하는 절차 개선을 건의(근거: 리드타임 실측, 유형별 지연률). 협력사 교육 예산 3,000만원은 보류하거나 OJT 보강 수준으로 축소.",
+  debrief:[["질문 검증","소장의 말에서 사실은 무엇이고 판단은 무엇이었습니까? 협력사 교체 시점을 요청한 팀은 왜 그걸 물었습니까?"],["정보 요청 설계","첫 세 번의 요청을 무엇에 썼습니까? 실무에서 12회 제한이 있는 상황은 무엇입니까? (소장의 시간, 본사에 자료 요청할 수 있는 횟수)"],["출처 검증","1반장과 2반 주임의 말이 달랐습니다. 어느 쪽을 믿었고 왜 그랬습니까? 소장 메모에 새로운 사실이 있었습니까?"],["구조화","전체 지연률 하나로 볼 때와 정비 유형·공정 단계로 쪼갰을 때 무엇이 달라졌습니까?"],["보고","소장이 원인까지 지정했는데 원인이 다르다는 걸 알았습니다. 보고서 첫 줄을 어떻게 썼습니까? 본사 지침이 원인일 때 사업소 보고서는 어디까지 써야 합니까?"]]
+};
+const MANUAL = [["hyp","가설·필요 정보 목록을 세우고 요청했는가",6],["spec","요청 문장이 구체적이었는가",4],["src","1반장·소장 메모의 진술을 사실과 구분했는가",8],["chk","결론이 카드 시점과 모순 없는가",4],["rc1","원인: 자재 검수 절차 강화에 따른 리드타임 증가 지목",12],["rc2","원인: 협력사 교체 영향을 1~2%p 수준으로 크기 매김",6],["ra1","대응책: 부품 교체 정비의 선발주·일정 반영, 본사 절차 건의",8],["ra2","대응책: 협력사 교육 예산 3,000만원에 대한 입장",4],["rp1","보고: 결론이 첫 줄",5],["rp2","보고: 소장의 전제가 틀렸음을 명시",5]];
+
+/* ============ STATE ============ */
+const $ = id => document.getElementById(id);
+const byN = n => CARDS.find(c=>c.n===n);
+let db=null, unsubTeams=null, unsubSess=null;
+let API={ok:false,ai:false,store:false}; let pollT=null, sessT=null;
+let mode="team";
+let team = null;        // {no,name,phase,startedAt,requests:[],report:{},submittedAt}
+let session = {phase:"free"}; // free|brief|req|report|reveal
+let teamsAll = {};       // no -> team doc (instructor)
+let scoresLocal = {};    // no -> {key:val}
+let selTeam=null;
+
+function ls(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
+
+/* ============ MATCHING ============ */
+function norm(s){return s.replace(/\s+/g," ").trim()}
+function matchCard(text){
+  const t=norm(text); const tl=t.replace(/\s/g,"");
+  for(const grp of NO_INFO){ if(grp.some(k=>tl.includes(k.replace(/\s/g,"")))) return {none:true}; }
+  const scored=CARDS.map(c=>{let s=0;for(const k of c.k){const kk=k.replace(/\s/g,"");if(tl.includes(kk))s+=kk.length>=4?3:2}return {c,s}}).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  if(!scored.length){
+    for(const w in CLARIFY){ if(tl.includes(w)) return {clarify:CLARIFY[w]}; }
+    return {none:true};
+  }
+  if(scored.length>1 && scored[0].s===scored[1].s){
+    for(const w in CLARIFY){ if(tl.includes(w)) return {clarify:CLARIFY[w]}; }
+    return {clarify:"두 가지 정보가 함께 걸립니다. "+scored[0].c.title+" / "+scored[1].c.title+" 중 어느 쪽인지 한 가지로 좁혀 주십시오."};
+  }
+  return {card:scored[0].c};
+}
+
+/* ============ SCORING ============ */
+function autoScore(t){
+  const reqs=t.requests||[]; const got=new Set(reqs.filter(r=>r.card).map(r=>r.card));
+  const noise=reqs.filter(r=>r.card&&NOISE.includes(r.card)).length;
+  const keyIdx=reqs.findIndex(r=>KEY_CARDS.includes(r.card));
+  const s={
+    def:(got.has(4)||got.has(2))?8:0,
+    comp:got.has(8)?8:0,
+    noise:noise===0?6:noise===1?4:noise===2?2:0,
+    split:(got.has(5)||got.has(7)||got.has(10))?10:0,
+    near:got.has(14)?6:0
+  };
+  s.total=Object.values(s).reduce((a,b)=>a+b,0);
+  return {s,noise,keyIdx:keyIdx<0?null:keyIdx+1,gotCount:got.size};
+}
+function manualScore(no){const m=scoresLocal[no]||{};let sum=0;for(const [k,,mx] of MANUAL){sum+=Math.min(mx,Number(m[k]||0))}return sum}
+
+/* ============ SYNC ============ */
+async function initApi(){
+  try{ const r=await fetch('/api/health',{cache:'no-store'}); const j=await r.json(); if(j&&j.ok){ API=j; } }catch(e){}
+  if(API.store){ $("syncPill").innerHTML='<i class="dot live"></i> 실시간 연결'+(API.ai?' · AI 매칭':''); $("syncPill").classList.add("ok");
+    sessT=setInterval(pollSession,5000); pollSession(); }
+  else if(API.ai){ $("syncPill").innerHTML='<i class="dot live"></i> AI 매칭'; }
+}
+async function pollSession(){ try{ const r=await fetch('/api/state?kind=session',{cache:'no-store'}); const j=await r.json(); if(j.ok){ const p=j.phase||'free'; if(p!==session.phase){ session={phase:p}; renderGate(); if(mode==='inst') renderPhaseBtns(); } } }catch(e){} }
+async function aiMatch(text){
+  const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),9000);
+  try{ const r=await fetch('/api/match',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text}),signal:ctrl.signal}); clearTimeout(t);
+    if(!r.ok) return null; const j=await r.json();
+    if(j.card) return {card:byN(j.card),ai:true}; if(j.clarify) return {clarify:j.clarify,ai:true}; if(j.none) return {none:true,ai:true}; return null;
+  }catch(e){ clearTimeout(t); return null; }
+}
+async function initDb(){
+  try{
+    if(!window.claude||!window.claude.use) return;
+    db=await window.claude.use("db");
+    if(!db) return;
+    $("syncPill").innerHTML='<i class="dot live"></i> 실시간 연결';
+    $("syncPill").classList.add("ok");
+    unsubSess=db.doc("sessions/main").onSnapshot(snap=>{ if(snap.exists){session=snap.data();} else {session={phase:"free"};} renderGate(); if(mode==="inst") renderPhaseBtns(); },()=>{});
+  }catch(e){ db=null; }
+}
+async function pushTeam(){
+  if(!team) return;
+  ls("team",team);
+  if(API.store){ try{ await fetch('/api/state?kind=teams',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({team})}); }catch(e){} }
+  if(db){ try{ await db.doc("teams/t"+team.no).set(team); }catch(e){} }
+}
+async function pollTeams(){ try{ const r=await fetch('/api/state?kind=teams',{cache:'no-store'}); const j=await r.json(); if(j.ok){ teamsAll=j.teams||{}; ls("teamsAll",teamsAll); renderDash(); } }catch(e){} }
+function subscribeTeams(){
+  if(API.store&&!pollT){ pollT=setInterval(pollTeams,4000); pollTeams(); return; }
+  if(!db||unsubTeams) return;
+  unsubTeams=db.collection("teams").onSnapshot(snap=>{
+    snap.docs.forEach(d=>{const v=d.data(); if(v&&v.no) teamsAll[v.no]=v;});
+    snap.docChanges().forEach(ch=>{ if(ch.type==="removed"){const v=ch.doc.data(); if(v&&v.no) delete teamsAll[v.no];} });
+    ls("teamsAll",teamsAll); renderDash();
+  },()=>{});
+}
+async function setPhase(p){
+  session.phase=p; renderGate(); renderPhaseBtns();
+  if(API.store){ try{ await fetch('/api/state?kind=session',{method:'POST',headers:{'content-type':'application/json','x-pin':PIN},body:JSON.stringify({phase:p})}); }catch(e){} }
+  if(db){ try{ await db.doc("sessions/main").set({phase:p,at:Date.now()}); }catch(e){} }
+}
+
+/* ============ TEAM UI ============ */
+function fmt(ms){const s=Math.max(0,Math.floor(ms/1000));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+setInterval(()=>{ if(team&&team.startedAt&&!team.submittedAt) $("clock").textContent=fmt(Date.now()-team.startedAt); },1000);
+
+function showTeamPhase(){
+  if(!team){$("tSetup").hidden=false;$("tPlay").hidden=true;return;}
+  $("tSetup").hidden=true;$("tPlay").hidden=false;
+  const ph=team.phase;
+  $("pBrief").hidden=ph!=="brief"; $("pReq").hidden=ph!=="req"; $("pReport").hidden=ph!=="report"; $("pDone").hidden=ph!=="done";
+  const order=["brief","req","report","done"];
+  order.forEach((p,i)=>{const el=$("st"+(i+1)); el.className= p===ph?"on":(order.indexOf(ph)>i?"done":"");});
+  $("teamLabel").textContent=team.no+"팀 · "+team.name;
+  $("remain").textContent=MAX_REQ-team.requests.length;
+  renderCardLog(); renderGate();
+  if(ph==="done") renderDone();
+}
+function renderGate(){
+  if(!team) return;
+  const gated=(db||API.store)&&session.phase&&session.phase!=="free";
+  const canStart=!gated||session.phase==="req"||session.phase==="report"||session.phase==="reveal";
+  $("btnStartReq").disabled=!canStart;
+  $("briefGate").textContent=gated&&!canStart?"강사가 정보 요청 단계를 열면 시작할 수 있습니다.":"";
+  const reqOpen=(!gated||session.phase==="req");
+  $("btnAsk").disabled=!reqOpen||team.requests.length>=MAX_REQ;
+  if(gated&&session.phase==="report"&&team.phase==="req"){ team.phase="report"; pushTeam(); showTeamPhase(); }
+  if(team.phase==="done"){ const tr=$("teamReveal"); tr.hidden=!(session.phase==="reveal"); if(!tr.hidden) tr.innerHTML=answerHtml(); }
+}
+function cardHtml(r,i){
+  if(r.clarify) return '<div class="card none"><div class="t">되물음 (횟수 미차감)</div><div class="h" style="color:var(--ink2)">'+esc(r.text)+'</div><div>'+esc(r.clarify)+'</div></div>';
+  if(!r.card) return '<div class="card none"><div class="t">'+i+'회 · '+esc(r.text)+'</div><div class="h">그 정보는 없습니다.</div></div>';
+  const c=byN(r.card);
+  return '<div class="card got"><div class="t">'+i+'회 · 카드 '+c.n+' · '+esc(r.text)+'</div><div class="h">'+esc(c.title)+'</div><div>'+esc(c.body)+'</div></div>';
+}
+function renderCardLog(){
+  const items=[]; let i=0;
+  (team.requests||[]).forEach(r=>{ if(!r.clarify) i++; items.push(cardHtml(r,i)); });
+  const html=items.length?items.reverse().join(""):'<p class="note">아직 요청한 정보가 없습니다.</p><img class="mascot-inline" src="img/mega.png" alt="">';
+  $("cardLog").innerHTML=html; $("cardLog2").innerHTML=html;
+  $("gotCount").textContent=i?"("+i+"회 사용)":"";
+}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+$("btnRegister").onclick=()=>{
+  const no=Number($("teamNo").value), name=norm($("teamName").value);
+  if(!name){$("setupErr").hidden=false;$("setupErr").textContent="팀 이름을 입력하십시오.";return;}
+  $("setupErr").hidden=true;
+  team={no,name,phase:"brief",startedAt:null,requests:[],report:null,submittedAt:null,registeredAt:Date.now()};
+  pushTeam(); showTeamPhase();
+};
+$("btnStartReq").onclick=()=>{ team.phase="req"; team.startedAt=team.startedAt||Date.now(); pushTeam(); showTeamPhase(); };
+$("btnAsk").onclick=async()=>{
+  const text=norm($("reqText").value);
+  if(text.length<2){$("reqErr").hidden=false;$("reqErr").textContent="알고 싶은 정보를 문장으로 적어 주십시오.";return;}
+  if(team.requests.filter(r=>!r.clarify).length>=MAX_REQ){$("reqErr").hidden=false;$("reqErr").textContent="12회를 모두 사용했습니다. 보고서 작성으로 넘어가십시오.";return;}
+  $("reqErr").hidden=true;
+  let m=null;
+  if(API.ai){ $("btnAsk").disabled=true; $("btnAsk").textContent="확인 중…"; m=await aiMatch(text); $("btnAsk").textContent="요청"; $("btnAsk").disabled=false; }
+  if(!m) m=matchCard(text);
+  const r={text,at:Date.now(),card:m.card?m.card.n:null,clarify:m.clarify||null,type:m.card?m.card.type:null,ai:!!m.ai};
+  team.requests.push(r); $("reqText").value="";
+  const la=$("lastAnswer"); la.hidden=false; la.innerHTML="<h3>방금 받은 답</h3>"+cardHtml(r,team.requests.filter(x=>!x.clarify).length);
+  pushTeam(); showTeamPhase(); $("reqText").focus();
+};
+$("reqText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)) $("btnAsk").click(); });
+$("btnToReport").onclick=()=>{ team.phase="report"; pushTeam(); showTeamPhase(); };
+$("btnSubmit").onclick=()=>{
+  const rep={c:norm($("r1").value),cause:norm($("r2").value),evidence:norm($("r3").value),action:norm($("r4").value),toBoss:norm($("r5").value)};
+  if(!rep.c||!rep.cause||!rep.evidence||!rep.action){$("repErr").hidden=false;$("repErr").textContent="결론·원인·근거·대응책은 반드시 채워야 합니다.";return;}
+  $("repErr").hidden=true;
+  team.report=rep; team.submittedAt=Date.now(); team.phase="done"; pushTeam(); showTeamPhase();
+};
+["r1","r2","r3","r4","r5"].forEach(id=>$(id).addEventListener("input",()=>{ if(team){ team.draft={r1:$("r1").value,r2:$("r2").value,r3:$("r3").value,r4:$("r4").value,r5:$("r5").value}; ls("team",team);} }));
+function renderDone(){
+  const a=autoScore(team);
+  $("doneMsg").textContent=team.no+"팀 "+team.name+" · 요청 "+team.requests.filter(r=>!r.clarify).length+"회 · 소요 "+fmt(team.submittedAt-team.startedAt)+((db||API.store)?" · 강사 화면에 전달되었습니다.":"");
+  $("resultCode").textContent=encodeTeam(team);
+  let i=0; $("doneLog").innerHTML="<tr><th>순번</th><th>요청</th><th>받은 카드</th></tr>"+team.requests.map(r=>{ if(r.clarify) return '<tr><td class="note">되물음</td><td>'+esc(r.text)+'</td><td class="note">횟수 미차감</td></tr>'; i++; return '<tr><td class="mono">'+i+'</td><td>'+esc(r.text)+'</td><td>'+(r.card?("카드 "+r.card+" "+esc(byN(r.card).title)):"없음")+'</td></tr>'; }).join("");
+  const tr=$("teamReveal"); tr.hidden=!(session.phase==="reveal"); if(!tr.hidden) tr.innerHTML=answerHtml();
+}
+function encodeTeam(t){ return btoa(unescape(encodeURIComponent(JSON.stringify({v:1,no:t.no,name:t.name,startedAt:t.startedAt,submittedAt:t.submittedAt,requests:t.requests.map(r=>[r.text,r.card,r.clarify?1:0,r.at]),report:t.report})))); }
+function decodeTeam(code){ const o=JSON.parse(decodeURIComponent(escape(atob(code.trim())))); if(!o.no||!o.requests) throw 0; return {no:o.no,name:o.name,startedAt:o.startedAt,submittedAt:o.submittedAt,phase:"done",report:o.report,requests:o.requests.map(a=>({text:a[0],card:a[1],clarify:a[2]?"(되물음)":null,at:a[3],type:a[1]?byN(a[1]).type:null}))}; }
+$("btnCopyCode").onclick=()=>{ copyText($("resultCode").textContent,$("copyMsg")); };
+function copyText(text,msgEl){
+  const done=()=>{msgEl.textContent="복사했습니다.";setTimeout(()=>msgEl.textContent="",2500)};
+  try{ navigator.clipboard.writeText(text).then(done).catch(()=>{fallback()}); }catch(e){fallback()}
+  function fallback(){ const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done()}catch(e){msgEl.textContent="직접 선택해서 복사하십시오."}document.body.removeChild(ta); }
+}
+
+/* ============ INSTRUCTOR UI ============ */
+$("btnPin").onclick=()=>{ if($("pin").value===PIN){$("iLock").hidden=true;$("iDash").hidden=false;ls("inst",1);openDash();} else {$("pinErr").hidden=false;$("pinErr").textContent="비밀번호가 맞지 않습니다.";} };
+$("pin").addEventListener("keydown",e=>{if(e.key==="Enter")$("btnPin").click()});
+function openDash(){
+  $("dashSync").textContent=(db||API.store)?"팀 화면과 실시간으로 연결되어 있습니다. 팀이 요청할 때마다 갱신됩니다."+(API.ai?" 요청 매칭은 AI가 합니다.":""):"실시간 연결이 없는 환경입니다. 팀의 결과 코드를 '결과 코드 가져오기'에서 붙여 넣으십시오. 진행 단계 버튼은 이 기기에만 적용됩니다.";
+  if(db||API.store) subscribeTeams(); else { teamsAll=ls("teamsAll")||{}; }
+  scoresLocal=ls("scores")||{};
+  renderPhaseBtns(); renderDash(); renderCards(); $("tabAnswer").innerHTML=answerHtml(true);
+}
+function renderPhaseBtns(){ const map={brief:"phBrief",req:"phReq",report:"phReport",reveal:"phReveal"}; for(const k in map){$(map[k]).classList.toggle("pri",session.phase===k);} }
+$("phBrief").onclick=()=>setPhase("brief");$("phReq").onclick=()=>setPhase("req");$("phReport").onclick=()=>setPhase("report");$("phReveal").onclick=()=>setPhase("reveal");
+$("btnResetAll").onclick=()=>{$("resetConfirm").hidden=false};$("btnResetNo").onclick=()=>{$("resetConfirm").hidden=true};
+$("btnResetYes").onclick=async()=>{ $("resetConfirm").hidden=true; if(API.store){ try{ await fetch('/api/state?kind=reset',{method:'POST',headers:{'x-pin':PIN}}); }catch(e){} } if(db){ for(const no in teamsAll){ try{await db.doc("teams/t"+no).delete()}catch(e){} } await setPhase("free"); } teamsAll={}; scoresLocal={}; ls("teamsAll",{}); ls("scores",{}); selTeam=null; renderDash(); };
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b)); ["teams","score","cards","answer","import"].forEach(t=>$("tab"+t[0].toUpperCase()+t.slice(1)).hidden=(b.dataset.tab!==t)); if(b.dataset.tab==="score") renderScore(); });
+
+function renderDash(){
+  const nos=Object.keys(teamsAll).map(Number).sort((a,b)=>a-b);
+  if(!nos.length){$("teamGrid").innerHTML='<p class="note">아직 등록한 팀이 없습니다.</p>';$("teamDetail").hidden=true;return;}
+  $("teamGrid").innerHTML=nos.map(no=>{
+    const t=teamsAll[no]; const a=autoScore(t); const used=(t.requests||[]).filter(r=>!r.clarify).length;
+    const st=t.phase==="done"?'<span class="pill ok">제출</span>':t.phase==="report"?'<span class="pill acc">보고서</span>':t.phase==="req"?'<span class="pill warn">요청 중</span>':'<span class="pill">브리핑</span>';
+    const last=(t.requests||[]).slice(-1)[0];
+    return '<div class="tcard'+(selTeam===no?" sel":"")+'" data-no="'+no+'"><div class="nm"><span>'+no+'팀 '+esc(t.name)+'</span>'+st+'</div><div class="bar"><i style="width:'+(used/MAX_REQ*100)+'%"></i></div><div class="kv"><span>요청</span><b>'+used+' / 12</b><span>노이즈</span><b>'+a.noise+'</b><span>핵심 도달</span><b>'+(a.keyIdx?a.keyIdx+"번째":"—")+'</b><span>자동 점수</span><b>'+a.s.total+' / 38</b></div>'+(last?'<div class="note" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">최근: '+esc(last.text)+'</div>':"")+'</div>';
+  }).join("");
+  document.querySelectorAll(".tcard").forEach(el=>el.onclick=()=>{selTeam=Number(el.dataset.no);renderDash();renderDetail();});
+  if(selTeam&&teamsAll[selTeam]) renderDetail(); else $("teamDetail").hidden=true;
+  if(!$("tabScore").hidden) renderScore();
+}
+function renderDetail(){
+  const t=teamsAll[selTeam]; if(!t){$("teamDetail").hidden=true;return;}
+  const a=autoScore(t); const m=scoresLocal[selTeam]||{};
+  let i=0;
+  const log='<div class="tbl"><table><tr><th>순번</th><th>요청 문장</th><th>카드</th><th>유형</th></tr>'+(t.requests||[]).map(r=>{ if(r.clarify) return '<tr><td class="note">되물음</td><td>'+esc(r.text)+'</td><td class="note">미차감</td><td></td></tr>'; i++; const c=r.card?byN(r.card):null; return '<tr><td class="mono">'+i+'</td><td>'+esc(r.text)+'</td><td>'+(c?c.n+" "+esc(c.title):'<span class="note">없음</span>')+'</td><td>'+(c?'<span class="tag '+c.type+'">'+c.type+'</span>':"")+'</td></tr>'; }).join("")+'</table></div>';
+  const rep=t.report?'<div class="stack" style="gap:8px"><div><h3>결론</h3><p>'+esc(t.report.c)+'</p></div><div><h3>원인</h3><p>'+esc(t.report.cause)+'</p></div><div><h3>근거</h3><p>'+esc(t.report.evidence)+'</p></div><div><h3>대응책</h3><p>'+esc(t.report.action)+'</p></div>'+(t.report.toBoss?'<div><h3>소장님께</h3><p>'+esc(t.report.toBoss)+'</p></div>':"")+'</div>':'<p class="note">아직 제출하지 않았습니다.</p>';
+  const autoRows=[["지연률의 정의·시점 요청 (카드 4·2)",a.s.def,8],["협력사 교체 시점 요청 (카드 8)",a.s.comp,8],["노이즈 요청 "+a.noise+"회",a.s.noise,6],["지연률을 쪼개어 요청 (카드 5·7·10)",a.s.split,10],["타 사업소 지연률 요청 (카드 14)",a.s.near,6]].map(r=>'<div class="scoreline"><span>'+r[0]+'</span><b class="mono" style="text-align:right">'+r[1]+' / '+r[2]+'</b></div>').join("");
+  const manRows=MANUAL.map(([k,l,mx])=>'<div class="scoreline"><span>'+l+' <span class="note">(최대 '+mx+')</span></span><input type="number" min="0" max="'+mx+'" data-k="'+k+'" value="'+(m[k]??"")+'"></div>').join("");
+  $("teamDetail").hidden=false;
+  $("teamDetail").innerHTML='<div class="row" style="justify-content:space-between"><h2 style="margin:0">'+selTeam+'팀 '+esc(t.name)+'</h2><span class="note">'+(t.startedAt?"시작 "+new Date(t.startedAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"")+(t.submittedAt?" · 제출 "+new Date(t.submittedAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})+" · 소요 "+fmt(t.submittedAt-t.startedAt):"")+'</span></div><div class="grid g2" style="margin-top:12px"><div><h3>요청 기록</h3>'+log+'</div><div><h3>보고서</h3>'+rep+'</div></div><div class="grid g2" style="margin-top:16px"><div><h3>자동 채점 (요청 기록)</h3>'+autoRows+'<div class="scoreline" style="border:0"><span style="font-weight:600">소계</span><b class="mono" style="text-align:right">'+a.s.total+' / 38</b></div></div><div><h3>강사 채점 (관찰·발표)</h3>'+manRows+'<div class="scoreline" style="border:0"><span style="font-weight:600">소계</span><b class="mono" style="text-align:right" id="manSum">'+manualScore(selTeam)+' / 62</b></div></div></div><div class="row" style="margin-top:12px;justify-content:flex-end"><span class="note">합계</span><span class="big" id="grand">'+(a.s.total+manualScore(selTeam))+'</span><span class="note">/ 100</span></div>';
+  $("teamDetail").querySelectorAll("input[data-k]").forEach(inp=>inp.addEventListener("input",()=>{ scoresLocal[selTeam]=scoresLocal[selTeam]||{}; scoresLocal[selTeam][inp.dataset.k]=Number(inp.value)||0; ls("scores",scoresLocal); $("manSum").textContent=manualScore(selTeam)+" / 62"; $("grand").textContent=a.s.total+manualScore(selTeam); }));
+}
+function renderScore(){
+  const nos=Object.keys(teamsAll).map(Number).sort((a,b)=>a-b);
+  $("scoreTable").innerHTML='<tr><th>팀</th><th>요청</th><th>노이즈</th><th>핵심 도달</th><th>소요</th><th>자동(38)</th><th>강사(62)</th><th>합계</th></tr>'+nos.map(no=>{const t=teamsAll[no];const a=autoScore(t);const ms=manualScore(no);return '<tr><td>'+no+'팀 '+esc(t.name)+'</td><td class="mono">'+(t.requests||[]).filter(r=>!r.clarify).length+'</td><td class="mono">'+a.noise+'</td><td class="mono">'+(a.keyIdx?a.keyIdx+"번째":"—")+'</td><td class="mono">'+(t.submittedAt?fmt(t.submittedAt-t.startedAt):"—")+'</td><td class="mono">'+a.s.total+'</td><td class="mono">'+ms+'</td><td class="mono" style="font-weight:600">'+(a.s.total+ms)+'</td></tr>'}).join("");
+}
+$("btnCopyCsv").onclick=()=>{ const nos=Object.keys(teamsAll).map(Number).sort((a,b)=>a-b); const rows=[["팀","팀명","요청","노이즈","핵심도달","소요","자동","강사","합계"]]; nos.forEach(no=>{const t=teamsAll[no];const a=autoScore(t);const ms=manualScore(no);rows.push([no,t.name,(t.requests||[]).filter(r=>!r.clarify).length,a.noise,a.keyIdx||"",t.submittedAt?fmt(t.submittedAt-t.startedAt):"",a.s.total,ms,a.s.total+ms])}); copyText(rows.map(r=>r.join(",")).join("\n"),$("csvMsg")); };
+function renderCards(){ $("cardTable").innerHTML='<tr><th>번호</th><th>유형</th><th>제목</th><th>내용</th></tr>'+CARDS.map(c=>'<tr><td class="mono">'+c.n+'</td><td><span class="tag '+c.type+'">'+c.type+'</span></td><td style="white-space:nowrap">'+esc(c.title)+'</td><td>'+esc(c.body)+'</td></tr>').join(""); }
+function answerHtml(full){
+  return '<div class="answer hasm pad"><img class="mascot" src="img/thumbs.png" alt=""><h2>정답</h2><p style="font-weight:500">'+esc(ANSWER.conclusion)+'</p><h3>정답에 이르는 최소 카드 경로</h3><ol style="margin:0 0 10px;padding-left:20px">'+ANSWER.path.map(p=>'<li><b>카드 '+p[0]+'</b> — '+esc(p[1])+'</li>').join("")+'</ol><h3>대응책</h3><p>'+esc(ANSWER.actions)+'</p></div>'+(full?'<div class="panel" style="margin-top:14px"><h2>디브리핑 질문</h2><div class="tbl"><table>'+ANSWER.debrief.map(d=>'<tr><td style="white-space:nowrap;font-weight:600">'+d[0]+'</td><td>'+esc(d[1])+'</td></tr>').join("")+'</table></div><p class="note" style="margin-top:8px">마무리: 정답에 필요한 카드는 5장이었습니다. 12회 중 나머지 7회는 검증에 쓰는 것이 맞습니다.</p></div>':"");
+}
+$("btnImport").onclick=()=>{ try{ const t=decodeTeam($("importText").value); teamsAll[t.no]=t; ls("teamsAll",teamsAll); $("importErr").hidden=true; $("importMsg").textContent=t.no+"팀 "+t.name+" 가져왔습니다."; $("importText").value=""; renderDash(); if(db){ db.doc("teams/t"+t.no).set(t).catch(()=>{}); } }catch(e){ $("importErr").hidden=false; $("importErr").textContent="코드를 읽을 수 없습니다. 전체를 빠짐없이 붙여 넣었는지 확인하십시오."; } };
+
+/* ============ MODE ============ */
+function setMode(m){ mode=m; $("viewTeam").hidden=m!=="team"; $("viewInst").hidden=m!=="inst"; $("btnModeTeam").classList.toggle("ghost",m!=="team"); $("btnModeInst").classList.toggle("ghost",m!=="inst"); if(m==="inst"&&ls("inst")){$("iLock").hidden=true;$("iDash").hidden=false;openDash();} }
+$("btnModeTeam").onclick=()=>setMode("team"); $("btnModeInst").onclick=()=>setMode("inst");
+
+/* ============ BOOT ============ */
+(function boot(){
+  for(let i=1;i<=TEAM_COUNT;i++){const o=document.createElement("option");o.value=i;o.textContent=i+"팀";$("teamNo").appendChild(o);}
+  const saved=ls("team"); if(saved&&saved.no){ team=saved; if(team.draft){$("r1").value=team.draft.r1||"";$("r2").value=team.draft.r2||"";$("r3").value=team.draft.r3||"";$("r4").value=team.draft.r4||"";$("r5").value=team.draft.r5||"";} }
+  showTeamPhase();
+  if(location.hash==="#inst") setMode("inst"); else setMode("team");
+  initApi().then(initDb).then(()=>{ if(team) pushTeam(); if(mode==="inst"&&!$("iDash").hidden) openDash(); renderGate(); });
+})();
+</script>
+
+</body></html>
